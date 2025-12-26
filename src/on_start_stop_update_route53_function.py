@@ -4,7 +4,7 @@ import os
 import boto3
 
 
-def on_start_lambda_handler(event, context):
+def on_start_handler(event, context):
     instance_id = event["detail"]["instance-id"]
     public_ip = get_public_ip(instance_id)
     hosted_zone_id = os.environ.get("HOSTED_ZONE_ID")
@@ -17,7 +17,7 @@ def on_start_lambda_handler(event, context):
     }
 
 
-def on_stop_lambda_handler(event, context):
+def on_stop_handler(event, context):
     instance_id = event["detail"]["instance-id"]
     hosted_zone_id = os.environ.get("HOSTED_ZONE_ID")
     delete_route53_records(hosted_zone_id, instance_id)

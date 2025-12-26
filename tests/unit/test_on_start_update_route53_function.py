@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 from moto import mock_aws
 
-from src.on_ec2_start_stop_function import on_start_lambda_handler
+from src.on_start_stop_update_route53_function import on_start_handler
 
 
 class TestOnStartLambdaHandler(unittest.TestCase):
@@ -16,7 +16,7 @@ class TestOnStartLambdaHandler(unittest.TestCase):
         os.environ["AWS_DEFAULT_REGION"] = "us-east-1"
 
     @mock_aws
-    def test_on_start_lambda_handler(self):
+    def test_on_start_handler(self):
         with patch("boto3.client") as mock_client:
             # setup
             mock_ec2_client = mock_client.return_value
@@ -38,6 +38,6 @@ class TestOnStartLambdaHandler(unittest.TestCase):
             }
             context = {}
             # execute
-            result = on_start_lambda_handler(event, context)
+            result = on_start_handler(event, context)
             # verify
             self.assertEqual(result["statusCode"], 200)

@@ -1,0 +1,101 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+
+Parameters:
+  ParentStackName:
+    Type: "String"
+  HostedZoneName:
+    Type: "String"
+
+Resources:
+
+  HostedZone:
+    Type: AWS::Route53::HostedZone
+    Properties:
+      Name: !Ref HostedZoneName
+  OnInstanceStartStopLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${ParentStackName}-update-route53"
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: /
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: !Sub "${ParentStackName}-update-route53"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ec2:DescribeInstances
+                  - ec2:DescribeTags
+                  - route53:ListHostedZones
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - route53:ChangeResourceRecordSets
+                  - route53:GetHostedZone
+                  - route53:ListResourceRecordSets
+                Resource: !Join ["/", ["arn:aws:route53:::hostedzone", !Ref HostedZone]]
+  OnInstanceStartStopLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${ParentStackName}-on-start-stop-update-route53"
+      RetentionInDays: 1
+  OnEc2InstanceStartFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${ParentStackName}-on-start-update-route53"
+      CodeUri: ../src/
+      Handler: on_start_stop_update_route53_function.on_start_handler
+      Runtime: python3.13
+      Architectures: [arm64]
+      Timeout: 15
+      Events:
+        EC2InstanceStartEvent:
+          Type: EventBridgeRule
+          Properties:
+            Pattern:
+              source: [aws.ec2]
+              detail-type: [EC2 Instance State-change Notification]
+              detail:
+                state: [running]
+      Environment:
+        Variables:
+          HOSTED_ZONE_ID: !Ref HostedZone
+      Role: !GetAtt OnInstanceStartStopLambdaRole.Arn
+      LoggingConfig:
+        LogGroup: !Ref OnInstanceStartStopLogGroup
+  OnEc2InstanceStopFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${ParentStackName}-on-stop-update-route53"
+      CodeUri: ../src/
+      Handler: on_start_stop_update_route53_function.on_stop_handler
+      Runtime: python3.13
+      Architectures: [arm64]
+      Timeout: 15
+      Events:
+        EC2InstanceStopEvent:
+          Type: EventBridgeRule
+          Properties:
+            Pattern:
+              source: [aws.ec2]
+              detail-type: [EC2 Instance State-change Notification]
+              detail:
+                state: [stopped]
+      Environment:
+        Variables:
+          HOSTED_ZONE_ID: !Ref HostedZone
+      Role: !GetAtt OnInstanceStartStopLambdaRole.Arn
+      LoggingConfig:
+        LogGroup: !Ref OnInstanceStartStopLogGroup

@@ -11,16 +11,16 @@ Parameters:
   KeyPair:
     Description: EC2 Key Pair
     Type: "AWS::EC2::KeyPair::KeyName"
-  HostedZoneName:
-    Description: "Optional hosted zone name (e.g.: play.example.com). Leave empty to skip creation."
+  Route53HostedZoneName:
+    Description: "Optional Route53 hosted zone name (e.g.: play.example.com). Leave empty to skip creation."
     Type: String
     Default: ""
 
 Conditions:
-  ShouldCreateHostedZone:
+  ManageRoute53HostedZone:
     Fn::Not:
       - Fn::Equals:
-          - !Ref HostedZoneName
+          - !Ref Route53HostedZoneName
           - ""
 
 Resources:
@@ -183,36 +183,7 @@ Resources:
               - Effect: Allow
                 Action: ["ec2:StartInstances", "ec2:StopInstances"]
                 Resource: "arn:aws:ec2:*:*:instance/*"
-  Bookworm:
-    Type: AWS::Serverless::Application
-    Properties:
-      Location: ./launch-templates-bookworm.yaml
-      Parameters:
-        ParentStackName: !Ref AWS::StackName
-        SecurityGroups:
-          Fn::Join:
-            - ","
-            - - !Ref AdminAccess
-              - !Ref GamingAccess
-              - !Ref RemotePlayAccess
-        Subnet: !Ref Subnet1
-        KeyPair: !Ref KeyPair
-        InstanceProfileArn: !GetAtt InstanceProfile.Arn
-  Jammy:
-    Type: AWS::Serverless::Application
-    Properties:
-      Location: ./launch-templates-jammy.yaml
-      Parameters:
-        ParentStackName: !Ref AWS::StackName
-        SecurityGroups:
-          Fn::Join:
-            - ","
-            - - !Ref AdminAccess
-              - !Ref GamingAccess
-              - !Ref RemotePlayAccess
-        Subnet: !Ref Subnet1
-        KeyPair: !Ref KeyPair
-        InstanceProfileArn: !GetAtt InstanceProfile.Arn
+
   Noble:
     Type: AWS::Serverless::Application
     Properties:
@@ -229,115 +200,16 @@ Resources:
         KeyPair: !Ref KeyPair
         InstanceProfileArn: !GetAtt InstanceProfile.Arn
 
-  HostedZone:
-    Type: AWS::Route53::HostedZone
-    Condition: ShouldCreateHostedZone
+  HostedZoneWithAutoUpdate:
+    Type: AWS::Serverless::Application
+    Condition: ManageRoute53HostedZone
     Properties:
-      Name: !Ref HostedZoneName
-  OnInstanceStartStopLambdaRole:
-    Type: AWS::IAM::Role
-    Condition: ShouldCreateHostedZone
-    Properties:
-      RoleName: !Sub "${AWS::StackName}-on-start-stop-lambda-role"
-      AssumeRolePolicyDocument:
-        Version: 2012-10-17
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service:
-                - lambda.amazonaws.com
-            Action:
-              - sts:AssumeRole
-      Path: /
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
-      Policies:
-        - PolicyName: !Sub "${AWS::StackName}-update-hosted-zone"
-          PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-              - Effect: Allow
-                Action:
-                  - ec2:DescribeInstances
-                  - ec2:DescribeTags
-                  - route53:ListHostedZones
-                Resource: "*"
-              - Effect: Allow
-                Action:
-                  - route53:ChangeResourceRecordSets
-                  - route53:GetHostedZone
-                  - route53:ListResourceRecordSets
-                Resource: !Join ["/", ["arn:aws:route53:::hostedzone", !Ref HostedZone]]
-  OnInstanceStartStopLogGroup:
-    Type: AWS::Logs::LogGroup
-    Condition: ShouldCreateHostedZone
-    Properties:
-      LogGroupName: !Sub "/aws/lambda/${AWS::StackName}-on-instance-start-stop"
-      RetentionInDays: 1
-  OnEc2InstanceStartFunction:
-    Type: AWS::Serverless::Function
-    Condition: ShouldCreateHostedZone
-    Properties:
-      FunctionName: !Sub "${AWS::StackName}-on-instance-start"
-      CodeUri: ../src/
-      Handler: on_ec2_start_stop_function.on_start_lambda_handler
-      Runtime: python3.13
-      Architectures: [arm64]
-      Timeout: 15
-      Events:
-        EC2InstanceStartEvent:
-          Type: EventBridgeRule
-          Properties:
-            Pattern:
-              source: [aws.ec2]
-              detail-type: [EC2 Instance State-change Notification]
-              detail:
-                state: [running]
-      Environment:
-        Variables:
-          HOSTED_ZONE_ID: !Ref HostedZone
-      Role: !GetAtt OnInstanceStartStopLambdaRole.Arn
-      LoggingConfig:
-        LogGroup: !Ref OnInstanceStartStopLogGroup
-  OnEc2InstanceStopFunction:
-    Type: AWS::Serverless::Function
-    Condition: ShouldCreateHostedZone
-    Properties:
-      FunctionName: !Sub "${AWS::StackName}-on-instance-stop"
-      CodeUri: ../src/
-      Handler: on_ec2_start_stop_function.on_stop_lambda_handler
-      Runtime: python3.13
-      Architectures: [arm64]
-      Timeout: 15
-      Events:
-        EC2InstanceStopEvent:
-          Type: EventBridgeRule
-          Properties:
-            Pattern:
-              source: [aws.ec2]
-              detail-type: [EC2 Instance State-change Notification]
-              detail:
-                state: [stopped]
-      Environment:
-        Variables:
-          HOSTED_ZONE_ID: !Ref HostedZone
-      Role: !GetAtt OnInstanceStartStopLambdaRole.Arn
-      LoggingConfig:
-        LogGroup: !Ref OnInstanceStartStopLogGroup
+      Location: ./hosted-zone-with-auto-update.yaml
+      Parameters:
+        ParentStackName: !Ref AWS::StackName
+        HostedZoneName: !Ref Route53HostedZoneName
 
 Outputs:
-  OnDemandLaunchTemplateBookworm:
-    Description: On-demand instance launch template (Bookworm)
-    Value: !GetAtt Bookworm.Outputs.OnDemandLaunchTemplate
-  SpotLaunchTemplateBookworm:
-    Description: Spot instance launch template (Bookworm)
-    Value: !GetAtt Bookworm.Outputs.SpotLaunchTemplate
-  OnDemandLaunchTemplateJammy:
-    Description: On-demand instance launch template (Jammy)
-    Value: !GetAtt Jammy.Outputs.OnDemandLaunchTemplate
-  SpotLaunchTemplateJammy:
-    Description: Spot instance launch template (Jammy)
-    Value: !GetAtt Jammy.Outputs.SpotLaunchTemplate
   OnDemandLaunchTemplateNoble:
     Description: On-demand instance launch template (Noble)
     Value: !GetAtt Noble.Outputs.OnDemandLaunchTemplate
