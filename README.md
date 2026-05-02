@@ -1,5 +1,7 @@
 # EC2 Gaming on Linux
 
+> This project is discontinued and no longer maintained.
+
 Cloud Gaming powered by [Sunshine] on EC2 Spot Instances, tested with:
 
 * EC2 g4dn instances using NVIDIA gaming driver
