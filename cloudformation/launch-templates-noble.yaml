@@ -5,9 +5,9 @@ Parameters:
   ParentStackName:
     Type: "String"
   SecurityGroups:
-    Type: "List<AWS::EC2::SecurityGroup::Id>"
+    Type: "CommaDelimitedList"
   Subnet:
-    Type: "AWS::EC2::Subnet::Id"
+    Type: "String"
   LatestAmi:
     Type: "AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>"
     Default: "/aws/service/canonical/ubuntu/server/24.04/stable/current/amd64/hvm/ebs-gp3/ami-id"
