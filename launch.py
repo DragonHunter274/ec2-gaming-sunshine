@@ -47,7 +47,7 @@ def main():
         instance_profile_name = outputs["InstanceProfileName"]
 
         run_kwargs = {
-            "LaunchTemplate": {"LaunchTemplateName": template_name, "Version": "$Latest"},
+            "LaunchTemplate": {"LaunchTemplateId": template_name, "Version": "$Latest"},
             "SubnetId": subnet_id,
             "SecurityGroupIds": security_group_ids,
             "IamInstanceProfile": {"Name": instance_profile_name},
