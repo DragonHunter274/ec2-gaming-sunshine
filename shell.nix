@@ -3,6 +3,7 @@
 pkgs.mkShell {
   buildInputs = with pkgs; [
     python313
+    awscli2
     pre-commit
     commitizen
   ];
