@@ -198,7 +198,7 @@ Resources:
               - !Ref RemotePlayAccess
         Subnet: !Ref Subnet1
         KeyPair: !Ref KeyPair
-        InstanceProfileArn: !GetAtt InstanceProfile.Arn
+        InstanceProfileName: !Ref InstanceProfile
 
   HostedZoneWithAutoUpdate:
     Type: AWS::Serverless::Application

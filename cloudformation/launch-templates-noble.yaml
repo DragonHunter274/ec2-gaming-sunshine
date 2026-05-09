@@ -14,7 +14,7 @@ Parameters:
   KeyPair:
     Description: EC2 Key Pair
     Type: "AWS::EC2::KeyPair::KeyName"
-  InstanceProfileArn:
+  InstanceProfileName:
     Type: "String"
 
 Resources:
@@ -24,7 +24,7 @@ Resources:
       LaunchTemplateName: !Sub "${ParentStackName}-noble-on-demand"
       LaunchTemplateData:
         IamInstanceProfile:
-          Arn: !Ref InstanceProfileArn
+          Name: !Ref InstanceProfileName
         NetworkInterfaces:
         - DeviceIndex: 0
           AssociatePublicIpAddress: true
@@ -64,7 +64,7 @@ Resources:
       LaunchTemplateName: !Sub "${ParentStackName}-noble-spot"
       LaunchTemplateData:
         IamInstanceProfile:
-          Arn: !Ref InstanceProfileArn
+          Name: !Ref InstanceProfileName
         NetworkInterfaces:
           - DeviceIndex: 0
             AssociatePublicIpAddress: true
