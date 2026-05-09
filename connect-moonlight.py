@@ -71,9 +71,16 @@ def pair(public_ip: str, instance_id: str):
     pin = f"{randint(0, 9999):04}"
     command = f"https --ignore-stdin --verify=no -a sunshine:sunshine :47990/api/pin pin={pin}"
     moonlight = subprocess.Popen([MOONLIGHT_QT, "pair", "--pin", pin, public_ip])
-    sleep(3)
+    # Wait for Moonlight to connect to Sunshine and initiate the pairing handshake
+    # before submitting the PIN via SSM (SSM itself adds ~10-20s of latency)
+    sleep(10)
     run_ssm_command(instance_id, command)
-    moonlight.wait()
+    try:
+        moonlight.wait(timeout=30)
+    except subprocess.TimeoutExpired:
+        moonlight.kill()
+        print("Pairing timed out, retrying...")
+        pair(public_ip, instance_id)
 
 
 if __name__ == "__main__":
