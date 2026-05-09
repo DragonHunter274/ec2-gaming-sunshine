@@ -106,7 +106,10 @@ UserData:
         #!/bin/bash
         set -euo pipefail
         ubuntu-drivers install
-        test -f /etc/X11/xorg.conf || nvidia-xconfig --preserve-busid --enable-all-gpus
+        if ! test -f /etc/X11/xorg.conf; then
+          nvidia-xconfig --preserve-busid --enable-all-gpus --allow-empty-initial-configuration
+          sed -i 's|Section "Files"|Section "Files"\n    ModulePath "/usr/lib/x86_64-linux-gnu/nvidia/xorg"\n    ModulePath "/usr/lib/xorg/modules"|' /etc/X11/xorg.conf
+        fi
         nvidia-smi -q | head
       permissions: '0755'
     - path: /etc/systemd/system/init_mnt.service
