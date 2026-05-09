@@ -27,21 +27,26 @@ def main():
     logging.basicConfig(level=logging.INFO)
     logging.info(f"Updating stack {stack_name}")
 
-    client = boto3.client("cloudformation")
+    cf = boto3.client("cloudformation")
+    ec2 = boto3.client("ec2")
 
     try:
         ip = get_ip()
         ip_cidr = f"{ip}/32"
         logging.info(f"Updating IP whitelisting to: {ip_cidr}")
-        client.update_stack(
+
+        cf.update_stack(
             StackName=stack_name,
             UsePreviousTemplate=True,
             Parameters=[
                 {"ParameterKey": "MyIp", "ParameterValue": ip_cidr},
                 {"ParameterKey": "KeyPair", "UsePreviousValue": True},
+                {"ParameterKey": "Route53HostedZoneName", "UsePreviousValue": True},
             ],
             Capabilities=["CAPABILITY_NAMED_IAM", "CAPABILITY_AUTO_EXPAND"],
         )
+
+        update_security_groups(stack_name, ip_cidr, ec2, cf)
 
     except botocore.exceptions.ClientError as error:
         if error.response["Error"]["Code"] == "ValidationError":
@@ -49,6 +54,32 @@ def main():
             return 1
         else:
             raise error
+
+
+def update_security_groups(stack_name: str, new_ip_cidr: str, ec2, cf):
+    resources = cf.describe_stack_resources(StackName=stack_name)
+    sg_ids = [
+        r["PhysicalResourceId"]
+        for r in resources["StackResources"]
+        if r["ResourceType"] == "AWS::EC2::SecurityGroup"
+        and r["LogicalResourceId"] in ["AdminAccess", "GamingAccess"]
+    ]
+
+    for sg_id in sg_ids:
+        sg = ec2.describe_security_groups(GroupIds=[sg_id])["SecurityGroups"][0]
+        for rule in sg["IpPermissions"]:
+            old_ranges = [r for r in rule["IpRanges"] if r["CidrIp"] != "0.0.0.0/0"]
+            if not old_ranges:
+                continue
+            ec2.revoke_security_group_ingress(
+                GroupId=sg_id,
+                IpPermissions=[{**rule, "IpRanges": old_ranges}],
+            )
+            ec2.authorize_security_group_ingress(
+                GroupId=sg_id,
+                IpPermissions=[{**rule, "IpRanges": [{"CidrIp": new_ip_cidr}]}],
+            )
+            logging.info(f"Updated {sg['GroupName']} ({sg_id})")
 
 
 def get_ip():
