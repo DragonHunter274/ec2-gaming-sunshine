@@ -166,7 +166,7 @@ Resources:
   LibraryBucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: !Sub "${AWS::StackName}-library"
+      BucketName: !Sub "${AWS::StackName}-library-${AWS::AccountId}"
   ControllerUser:
     Type: AWS::IAM::User
     Properties:
