@@ -190,15 +190,7 @@ Resources:
       Location: ./launch-templates-noble.yaml
       Parameters:
         ParentStackName: !Ref AWS::StackName
-        SecurityGroups:
-          Fn::Join:
-            - ","
-            - - !Ref AdminAccess
-              - !Ref GamingAccess
-              - !Ref RemotePlayAccess
-        Subnet: !Ref Subnet1
         KeyPair: !Ref KeyPair
-        InstanceProfileName: !Ref InstanceProfile
 
   HostedZoneWithAutoUpdate:
     Type: AWS::Serverless::Application
@@ -216,5 +208,14 @@ Outputs:
   SpotLaunchTemplateNoble:
     Description: Spot instance launch template (Noble)
     Value: !GetAtt Noble.Outputs.SpotLaunchTemplate
+  SubnetId:
+    Description: Public subnet ID for launching instances
+    Value: !Ref Subnet1
+  SecurityGroupIds:
+    Description: Comma-separated security group IDs for gaming instances
+    Value: !Join [",", [!Ref AdminAccess, !Ref GamingAccess, !Ref RemotePlayAccess]]
+  InstanceProfileName:
+    Description: IAM instance profile name
+    Value: !Ref InstanceProfile
 
 # vim: ft=yaml.cloudformation

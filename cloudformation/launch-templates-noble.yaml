@@ -4,18 +4,12 @@ Transform: AWS::Serverless-2016-10-31
 Parameters:
   ParentStackName:
     Type: "String"
-  SecurityGroups:
-    Type: "CommaDelimitedList"
-  Subnet:
-    Type: "String"
   LatestAmi:
     Type: "AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>"
     Default: "/aws/service/canonical/ubuntu/server/24.04/stable/current/amd64/hvm/ebs-gp3/ami-id"
   KeyPair:
     Description: EC2 Key Pair
     Type: "AWS::EC2::KeyPair::KeyName"
-  InstanceProfileName:
-    Type: "String"
 
 Resources:
   OnDemandLaunchTemplate:
@@ -23,14 +17,6 @@ Resources:
     Properties:
       LaunchTemplateName: !Sub "${ParentStackName}-noble-on-demand"
       LaunchTemplateData:
-        IamInstanceProfile:
-          Name: !Ref InstanceProfileName
-        NetworkInterfaces:
-        - DeviceIndex: 0
-          AssociatePublicIpAddress: true
-          DeleteOnTermination: true
-          SubnetId: !Ref Subnet
-          Groups: !Ref SecurityGroups
         PrivateDnsNameOptions:
           HostnameType: resource-name
         BlockDeviceMappings:
@@ -63,14 +49,6 @@ Resources:
     Properties:
       LaunchTemplateName: !Sub "${ParentStackName}-noble-spot"
       LaunchTemplateData:
-        IamInstanceProfile:
-          Name: !Ref InstanceProfileName
-        NetworkInterfaces:
-          - DeviceIndex: 0
-            AssociatePublicIpAddress: true
-            DeleteOnTermination: true
-            SubnetId: !Ref Subnet
-            Groups: !Ref SecurityGroups
         PrivateDnsNameOptions:
           HostnameType: resource-name
         BlockDeviceMappings:
