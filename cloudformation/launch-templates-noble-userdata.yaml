@@ -108,6 +108,7 @@ UserData:
         StartLimitBurst=20
         [Service]
         Environment=DISPLAY=:0
+        ExecStartPre=/bin/bash -c 'until DISPLAY=:0 xrandr &>/dev/null; do sleep 2; done'
         Restart=on-failure
         RestartSec=10
       permissions: '0644'
