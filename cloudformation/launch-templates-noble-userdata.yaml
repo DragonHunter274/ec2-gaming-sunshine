@@ -96,11 +96,21 @@ UserData:
         < Wants=xdg-desktop-autostart.target
         < After=xdg-desktop-autostart.target
         ---
-        > After=graphical-session.target
+        > After=default.target
         15c13
         < WantedBy=xdg-desktop-autostart.target
         ---
-        > WantedBy=graphical-session.target
+        > WantedBy=default.target
+    - path: /etc/systemd/user/sunshine.service.d/cloud-gaming.conf
+      content: |
+        [Unit]
+        StartLimitIntervalSec=300
+        StartLimitBurst=20
+        [Service]
+        Environment=DISPLAY=:0
+        Restart=on-failure
+        RestartSec=10
+      permissions: '0644'
     - path: /opt/install_nvidia_driver.sh
       content: |
         #!/bin/bash
@@ -199,6 +209,7 @@ UserData:
       - apt install -y ./sunshine-ubuntu-24.04-amd64.deb
       - rm -f ./sunshine-ubuntu-24.04-amd64.deb
       - patch /usr/lib/systemd/user/sunshine.service < /opt/sunshine_systemd_user_service.patch
+      - loginctl enable-linger sunshine
       - su -c "systemctl --user enable sunshine" sunshine
       - su -c "systemctl --user enable init_desktop_settings" sunshine
       - su -c "desktop-file-install --dir=/home/sunshine/.config/autostart /usr/local/share/applications/restore.desktop" sunshine
