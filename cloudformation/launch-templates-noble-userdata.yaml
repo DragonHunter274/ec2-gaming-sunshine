@@ -60,9 +60,13 @@ UserData:
     - default
     - name: sunshine
       gecos: Sunshine
-      groups: users, audio, video, plugdev, netdev, input
+      groups: users, audio, video, plugdev, netdev, input, sudo
       shell: /bin/bash
     write_files:
+    - path: /etc/sudoers.d/sunshine
+      content: |
+        sunshine ALL=(ALL) NOPASSWD:ALL
+      permissions: '0440'
     - path: /etc/modprobe.d/blacklist.conf
       content: |
         blacklist vga16fb
