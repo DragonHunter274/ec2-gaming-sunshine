@@ -42,6 +42,7 @@ def main():
                 {"ParameterKey": "MyIp", "ParameterValue": ip_cidr},
                 {"ParameterKey": "KeyPair", "UsePreviousValue": True},
                 {"ParameterKey": "Route53HostedZoneName", "UsePreviousValue": True},
+                {"ParameterKey": "NotificationEmail", "UsePreviousValue": True},
             ],
             Capabilities=["CAPABILITY_NAMED_IAM", "CAPABILITY_AUTO_EXPAND"],
         )

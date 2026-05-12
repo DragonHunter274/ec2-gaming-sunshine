@@ -15,12 +15,21 @@ Parameters:
     Description: "Optional Route53 hosted zone name (e.g.: play.example.com). Leave empty to skip creation."
     Type: String
     Default: ""
+  NotificationEmail:
+    Description: "Optional email address for spot interruption notifications. Leave empty to skip."
+    Type: String
+    Default: ""
 
 Conditions:
   ManageRoute53HostedZone:
     Fn::Not:
       - Fn::Equals:
           - !Ref Route53HostedZoneName
+          - ""
+  HasNotificationEmail:
+    Fn::Not:
+      - Fn::Equals:
+          - !Ref NotificationEmail
           - ""
 
 Resources:
@@ -183,6 +192,54 @@ Resources:
               - Effect: Allow
                 Action: ["ec2:StartInstances", "ec2:StopInstances"]
                 Resource: "arn:aws:ec2:*:*:instance/*"
+
+  SpotNotificationTopic:
+    Type: AWS::SNS::Topic
+    Condition: HasNotificationEmail
+    Properties:
+      TopicName: !Sub "${AWS::StackName}-spot-interruption"
+      Subscription:
+        - Protocol: email
+          Endpoint: !Ref NotificationEmail
+
+  SpotNotificationTopicPolicy:
+    Type: AWS::SNS::TopicPolicy
+    Condition: HasNotificationEmail
+    Properties:
+      Topics:
+        - !Ref SpotNotificationTopic
+      PolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action: sns:Publish
+            Resource: !Ref SpotNotificationTopic
+
+  SpotInterruptionRule:
+    Type: AWS::Events::Rule
+    Condition: HasNotificationEmail
+    Properties:
+      Description: !Sub "Notify ${NotificationEmail} when a spot instance in ${AWS::StackName} is interrupted"
+      EventPattern:
+        source:
+          - aws.ec2
+        detail-type:
+          - EC2 Spot Instance Interruption Warning
+      State: ENABLED
+      Targets:
+        - Id: SpotNotificationTarget
+          Arn: !Ref SpotNotificationTopic
+          InputTransformer:
+            InputPathsMap:
+              instance: "$.detail.instance-id"
+              action: "$.detail.instance-action"
+              time: "$.time"
+            InputTemplate: |
+              "Spot instance interruption warning at <time>
+              Instance: <instance>
+              Action: <action>
+              You have ~2 minutes before the instance is terminated."
 
   Noble:
     Type: AWS::Serverless::Application

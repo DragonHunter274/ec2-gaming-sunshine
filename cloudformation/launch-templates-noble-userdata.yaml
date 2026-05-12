@@ -116,6 +116,42 @@ UserData:
         Restart=on-failure
         RestartSec=10
       permissions: '0644'
+    - path: /usr/local/bin/spot-termination-monitor
+      content: |
+        #!/bin/bash
+        TOKEN=$(curl -sf -X PUT "http://169.254.169.254/latest/api/token" \
+          -H "X-aws-ec2-metadata-token-ttl-seconds: 21600" || true)
+        while sleep 5; do
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+            -H "X-aws-ec2-metadata-token: $TOKEN" \
+            "http://169.254.169.254/latest/meta-data/spot/termination-time" \
+            --connect-timeout 2 --max-time 3)
+          if [ "$HTTP_CODE" = "200" ]; then
+            SUNSHINE_UID=$(id -u sunshine)
+            sudo -u sunshine \
+              DISPLAY=:0 \
+              DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/${SUNSHINE_UID}/bus" \
+              notify-send -u critical -t 0 \
+              "Spot instance terminating" \
+              "AWS is reclaiming this instance in ~2 minutes. Starting backup now..."
+            su -l sunshine -c backup || true
+            break
+          fi
+        done
+      permissions: '0755'
+    - path: /etc/systemd/system/spot-termination-monitor.service
+      content: |
+        [Unit]
+        Description=Monitor EC2 spot instance termination
+        After=network-online.target
+        Wants=network-online.target
+        [Service]
+        Type=simple
+        ExecStart=/usr/local/bin/spot-termination-monitor
+        Restart=on-failure
+        RestartSec=30
+        [Install]
+        WantedBy=multi-user.target
     - path: /opt/install_nvidia_driver.sh
       content: |
         #!/bin/bash
@@ -210,6 +246,7 @@ UserData:
       defer: true
     runcmd:
       - systemctl enable init_mnt
+      - systemctl enable spot-termination-monitor
       - rm -f /etc/apt/sources.list.d/steam.list
       - ubuntu-drivers install
       - apt update
