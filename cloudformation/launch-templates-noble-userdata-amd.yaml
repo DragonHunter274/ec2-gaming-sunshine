@@ -180,10 +180,14 @@ UserData:
       content: |
         #!/bin/bash
         set -euo pipefail
-        # Install AMD GPU X11 driver and VA-API support for hardware encoding
-        apt-get install -y xserver-xorg-video-amdgpu mesa-va-drivers vainfo
-        # Create xorg.conf for headless AMD (Radeon Pro V520)
+        GPU_PCI=$(lspci -D | grep -i "1002:" | grep -iv audio | awk '{print $1}' | head -1)
+        if [ -n "$GPU_PCI" ]; then
+          echo "options amdgpu virtual_display=${GPU_PCI},1" > /etc/modprobe.d/amdgpu.conf
+        fi
         cat > /etc/X11/xorg.conf << 'XORG'
+        Section "ServerFlags"
+            Option "AllowEmptyInitialConfiguration" "true"
+        EndSection
         Section "Device"
             Identifier "Device0"
             Driver "amdgpu"
