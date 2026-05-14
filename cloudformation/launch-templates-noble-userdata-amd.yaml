@@ -38,6 +38,7 @@ UserData:
     - libvdpau1
     - libvulkan1
     - linux-aws
+    - linux-firmware
     - linux-modules-extra-aws
     - mesa-va-drivers
     - nautilus
