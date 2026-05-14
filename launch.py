@@ -56,8 +56,10 @@ def swap_root_volume(instance_id: str, shared_volume: dict, stack_name: str, ec2
 
     if shared_volume["State"] == "in-use":
         current = shared_volume["Attachments"][0]["InstanceId"]
-        print(f"Detaching shared root {shared_volume_id} from previous instance {current}...")
-        ec2.detach_volume(VolumeId=shared_volume_id, Force=True)
+        print(f"Terminating previous instance {current}...")
+        ec2.terminate_instances(InstanceIds=[current])
+        ec2.get_waiter("instance_terminated").wait(InstanceIds=[current])
+        print(f"Previous instance terminated")
 
     print(f"Waiting for shared root {shared_volume_id} to be available...")
     ec2.get_waiter("volume_available").wait(VolumeIds=[shared_volume_id])
