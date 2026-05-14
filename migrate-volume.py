@@ -63,7 +63,10 @@ def main():
         )
         snapshot_id = snapshot["SnapshotId"]
         print(f"Waiting for snapshot {snapshot_id} to complete (this can take a few minutes)...")
-        ec2.get_waiter("snapshot_completed").wait(SnapshotIds=[snapshot_id])
+        ec2.get_waiter("snapshot_completed").wait(
+            SnapshotIds=[snapshot_id],
+            WaiterConfig={"Delay": 15, "MaxAttempts": 240},  # up to 60 minutes
+        )
         print(f"Snapshot complete")
 
         print(f"Creating new volume in {args.target_az}...")
