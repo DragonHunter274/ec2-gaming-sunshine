@@ -2,6 +2,7 @@
 
 import argparse
 import random
+import time
 from sys import exit
 
 import boto3
@@ -62,6 +63,25 @@ def try_launch(run_kwargs: dict, subnet_ids: list[str], ec2) -> dict:
     raise last_error
 
 
+def wait_for_spot_request_stopped(instance_id: str, ec2):
+    """For persistent spot instances, wait until the spot request is stopped before starting."""
+    response = ec2.describe_spot_instance_requests(
+        Filters=[{"Name": "instance-id", "Values": [instance_id]}]
+    )
+    requests = response["SpotInstanceRequests"]
+    if not requests:
+        return  # on-demand instance, nothing to wait for
+    print("Waiting for spot request to reach stopped state...")
+    for _ in range(30):
+        state = ec2.describe_spot_instance_requests(
+            SpotInstanceRequestIds=[requests[0]["SpotInstanceRequestId"]]
+        )["SpotInstanceRequests"][0]["State"]
+        if state == "stopped":
+            return
+        time.sleep(10)
+    raise RuntimeError(f"Spot request for {instance_id} did not reach stopped state in time")
+
+
 def swap_root_volume(instance_id: str, shared_volume: dict, stack_name: str, ec2):
     shared_volume_id = shared_volume["VolumeId"]
     print(f"Stopping instance {instance_id} to swap root volume...")
@@ -88,6 +108,8 @@ def swap_root_volume(instance_id: str, shared_volume: dict, stack_name: str, ec2
 
     ec2.attach_volume(VolumeId=shared_volume_id, InstanceId=instance_id, Device="/dev/sda1")
     print(f"Attached shared root {shared_volume_id} to {instance_id}")
+
+    wait_for_spot_request_stopped(instance_id, ec2)
 
     print(f"Starting instance {instance_id}...")
     ec2.start_instances(InstanceIds=[instance_id])
