@@ -56,10 +56,6 @@ def main():
             print(f"Volume {volume_id} is already in {args.target_az}")
             exit(0)
 
-        if volume["State"] == "in-use":
-            print(f"Volume {volume_id} is currently attached — stop the instance first.")
-            exit(1)
-
         print(f"Snapshotting {volume_id} ({current_az})...")
         snapshot = ec2.create_snapshot(
             VolumeId=volume_id,
@@ -97,6 +93,13 @@ def main():
 
         print(f"Deleting snapshot {snapshot_id}...")
         ec2.delete_snapshot(SnapshotId=snapshot_id)
+
+        old_vol = ec2.describe_volumes(VolumeIds=[volume_id])["Volumes"][0]
+        if old_vol["State"] == "in-use":
+            attached_instance = old_vol["Attachments"][0]["InstanceId"]
+            print(f"Detaching old volume from stopped instance {attached_instance}...")
+            ec2.detach_volume(VolumeId=volume_id, Force=True)
+            ec2.get_waiter("volume_available").wait(VolumeIds=[volume_id])
 
         print(f"Deleting old volume {volume_id}...")
         ec2.delete_volume(VolumeId=volume_id)
