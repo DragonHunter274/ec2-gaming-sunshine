@@ -38,6 +38,7 @@ UserData:
     - libvdpau1
     - libvulkan1
     - linux-aws
+    - linux-modules-extra-aws
     - mesa-va-drivers
     - nautilus
     - pkg-config
@@ -65,6 +66,9 @@ UserData:
       content: |
         sunshine ALL=(ALL) NOPASSWD:ALL
       permissions: '0440'
+    - path: /etc/modules-load.d/amdgpu.conf
+      content: |
+        amdgpu
     - path: /etc/gdm3/custom.conf
       content: |
         [daemon]
