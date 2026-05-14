@@ -22,7 +22,6 @@ UserData:
     - alsa-utils
     - baobab
     - build-essential
-    - dkms
     - dmz-cursor-theme
     - gdm3
     - gedit
@@ -39,7 +38,7 @@ UserData:
     - libvdpau1
     - libvulkan1
     - linux-aws
-    - linux-headers-aws
+    - mesa-va-drivers
     - nautilus
     - pkg-config
     - pulseaudio
@@ -48,12 +47,13 @@ UserData:
     - steam-launcher
     - steam-libs-amd64
     - unzip
-    - ubuntu-drivers-common
+    - vainfo
     - xdg-desktop-portal-gtk
     - xdg-utils
     - xserver-xorg-core
     - xserver-xorg-dev
     - xserver-xorg-input-libinput
+    - xserver-xorg-video-amdgpu
     users:
     - default
     - name: sunshine
@@ -65,16 +65,6 @@ UserData:
       content: |
         sunshine ALL=(ALL) NOPASSWD:ALL
       permissions: '0440'
-    - path: /etc/modprobe.d/blacklist.conf
-      content: |
-        blacklist vga16fb
-        blacklist nouveau
-        blacklist rivafb
-        blacklist nvidiafb
-        blacklist rivatv
-    - path: /etc/modprobe.d/nvidia.conf
-      content: |
-        options nvidia NVreg_EnableGpuFirmware=0
     - path: /etc/gdm3/custom.conf
       content: |
         [daemon]
@@ -88,9 +78,6 @@ UserData:
     - path: /etc/udev/rules.d/85-sunshine-input.rules
       content: |
         KERNEL=="uinput", GROUP="input", MODE="0660", OPTIONS+="static_node=uinput"
-    - path: /etc/udev/rules.d/99-ec2-cloud-storage.rules
-      content: |
-        KERNEL=="nvme[0-9]*n[0-9]*", ENV{DEVTYPE}=="disk", ATTRS{model}=="Amazon EC2 NVMe Instance Storage", ATTRS{serial}=="?*", SYMLINK+="instance-storage"
     - path: /opt/sunshine_systemd_user_service.patch
       content: |
         5,7c5
@@ -150,21 +137,6 @@ UserData:
         RestartSec=30
         [Install]
         WantedBy=multi-user.target
-    - path: /opt/install_nvidia_driver.sh
-      content: |
-        #!/bin/bash
-        set -euo pipefail
-        ubuntu-drivers install
-        if ! test -f /etc/X11/xorg.conf; then
-          nvidia-xconfig --preserve-busid --enable-all-gpus \
-            --allow-empty-initial-configuration \
-            --connected-monitor=DVI-D-0 \
-            --mode=1920x1080 \
-            --virtual=1920x1080
-          sed -i 's|Section "Files"|Section "Files"\n    ModulePath "/usr/lib/x86_64-linux-gnu/nvidia/xorg"\n    ModulePath "/usr/lib/xorg/modules"|' /etc/X11/xorg.conf
-        fi
-        nvidia-smi -q | head
-      permissions: '0755'
     - path: /opt/init_mnt.sh
       content: |
         #!/bin/bash
@@ -202,11 +174,34 @@ UserData:
         RestartSec=10
         [Install]
         WantedBy=multi-user.target
+    - path: /opt/install_amd_driver.sh
+      content: |
+        #!/bin/bash
+        set -euo pipefail
+        # Install AMD GPU X11 driver and VA-API support for hardware encoding
+        apt-get install -y xserver-xorg-video-amdgpu mesa-va-drivers vainfo
+        # Create xorg.conf for headless AMD (Radeon Pro V520)
+        cat > /etc/X11/xorg.conf << 'XORG'
+        Section "Device"
+            Identifier "Device0"
+            Driver "amdgpu"
+        EndSection
+        Section "Screen"
+            Identifier "Screen0"
+            Device "Device0"
+            DefaultDepth 24
+            SubSection "Display"
+                Depth 24
+                Virtual 1920 1080
+            EndSubSection
+        EndSection
+        XORG
+        vainfo 2>&1 | head || true
+      permissions: '0755'
     - path: /home/ubuntu/.bash_history
       content: |
         sudo loginctl unlock-sessions
         sudo reboot
-        sudo /opt/install_nvidia_driver.sh
         sudo /opt/install_amd_driver.sh
         tail  -f /var/log/cloud-init.log
       owner: ubuntu:ubuntu
@@ -271,9 +266,9 @@ UserData:
       - systemctl enable init_mnt
       - systemctl enable spot-termination-monitor
       - rm -f /etc/apt/sources.list.d/steam.list
-      - ubuntu-drivers install
+      - /opt/install_amd_driver.sh
       - apt update
-      - apt install -y libc6:i386 libegl1:amd64 libegl1:i386 libgbm1:amd64 libgbm1:i386 libgl1-mesa-dri:amd64 libgl1-mesa-dri:i386 libgl1:amd64 libgl1:i386 libnvidia-gl-535:i386 steam-libs-i386:i386
+      - apt install -y libc6:i386 libegl1:amd64 libegl1:i386 libgbm1:amd64 libgbm1:i386 libgl1-mesa-dri:amd64 libgl1-mesa-dri:i386 libgl1:amd64 libgl1:i386 steam-libs-i386:i386
       - wget https://github.com/LizardByte/Sunshine/releases/download/v0.23.1/sunshine-ubuntu-24.04-amd64.deb
       - apt install -y ./sunshine-ubuntu-24.04-amd64.deb
       - rm -f ./sunshine-ubuntu-24.04-amd64.deb
