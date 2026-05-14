@@ -23,7 +23,7 @@ Resources:
         - Ebs:
             VolumeSize: 20
             VolumeType: gp3
-            DeleteOnTermination: true
+            DeleteOnTermination: false
             Encrypted: true
           DeviceName: /dev/sda1
         ImageId: !Ref LatestAmi
@@ -55,7 +55,7 @@ Resources:
           - Ebs:
               VolumeSize: 20
               VolumeType: gp3
-              DeleteOnTermination: true
+              DeleteOnTermination: false
               Encrypted: true
             DeviceName: /dev/sda1
         ImageId: !Ref LatestAmi

@@ -169,24 +169,21 @@ UserData:
       content: |
         #!/bin/bash
         set -euo pipefail
-        ROOT_DEV=$(lsblk -no PKNAME "$(findmnt -n -o SOURCE /)" 2>/dev/null || echo "")
-        GAME_DEV=""
+        INST_DEV=""
         for dev in /dev/nvme[0-9]*n[0-9]*; do
-          devname=$(basename "$dev")
-          [ "$devname" = "$ROOT_DEV" ] && continue
-          model=$(cat "/sys/block/$devname/device/model" 2>/dev/null || echo "")
-          echo "$model" | grep -qi "Instance Storage" && continue
-          echo "$model" | grep -qi "Elastic Block" && { GAME_DEV=$dev; break; }
+          [ -e "$dev" ] || continue
+          model=$(cat "/sys/block/$(basename $dev)/device/model" 2>/dev/null || echo "")
+          echo "$model" | grep -qi "Instance Storage" && { INST_DEV=$dev; break; }
         done
-        if [ -z "$GAME_DEV" ]; then
-          echo "No game data EBS volume found" >&2
-          exit 1
+        if [ -z "$INST_DEV" ]; then
+          echo "No instance storage found, skipping" >&2
+          exit 0
         fi
-        blkid "$GAME_DEV" > /dev/null 2>&1 || mkfs.ext4 -L gamedata "$GAME_DEV"
+        mkfs.ext4 -F "$INST_DEV"
         mkdir -p /mnt/sunshine
-        mount -o defaults,nofail "$GAME_DEV" /mnt/sunshine
+        mount -o defaults,nofail "$INST_DEV" /mnt/sunshine
         chown sunshine:sunshine /mnt/sunshine
-        echo "Mounted $GAME_DEV at /mnt/sunshine"
+        echo "Mounted instance storage $INST_DEV at /mnt/sunshine"
       permissions: '0755'
     - path: /etc/systemd/system/init_mnt.service
       content: |
