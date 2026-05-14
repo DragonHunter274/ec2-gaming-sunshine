@@ -103,6 +103,7 @@ UserData:
         [Service]
         Environment=DISPLAY=:0
         ExecStartPre=/bin/bash -c 'until DISPLAY=:0 xrandr &>/dev/null; do sleep 2; done'
+        ExecStartPre=/bin/bash -c 'OUTPUT=$(DISPLAY=:0 xrandr | awk "/ connected/{print \$1; exit}"); DISPLAY=:0 xrandr --output "$OUTPUT" --mode 1920x1080 --fb 1920x1080'
         Restart=on-failure
         RestartSec=10
       permissions: '0644'
