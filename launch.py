@@ -1,9 +1,11 @@
 #!/usr/bin/env python
 
 import argparse
+import random
 from sys import exit
 
 import boto3
+from botocore.exceptions import ClientError
 
 DEFAULT_STACK_NAME = "ec2-gaming-sunshine"
 SHARED_ROOT_TAG = "ec2-gaming-sunshine:shared-root"
@@ -38,6 +40,26 @@ def tag_as_shared_root(volume_id: str, stack_name: str, ec2):
         Tags=[{"Key": SHARED_ROOT_TAG, "Value": stack_name}],
     )
     print(f"Tagged {volume_id} as shared root for stack '{stack_name}'")
+
+
+def get_subnet_az(subnet_id: str, ec2) -> str:
+    response = ec2.describe_subnets(SubnetIds=[subnet_id])
+    return response["Subnets"][0]["AvailabilityZone"]
+
+
+def try_launch(run_kwargs: dict, subnet_ids: list[str], ec2) -> dict:
+    """Try each subnet in order, skipping those with insufficient capacity."""
+    last_error = None
+    for subnet_id in subnet_ids:
+        try:
+            return ec2.run_instances(**{**run_kwargs, "SubnetId": subnet_id})
+        except ClientError as e:
+            if e.response["Error"]["Code"] == "InsufficientInstanceCapacity":
+                print(f"Insufficient capacity in subnet {subnet_id}, trying next...")
+                last_error = e
+            else:
+                raise
+    raise last_error
 
 
 def swap_root_volume(instance_id: str, shared_volume: dict, stack_name: str, ec2):
@@ -107,13 +129,12 @@ def main():
             template_key = "OnDemandLaunchTemplateNoble" if args.on_demand else "SpotLaunchTemplateNoble"
 
         template_name = outputs[template_key]
-        subnet_id = outputs["SubnetId"]
+        all_subnet_ids = outputs["SubnetIds"].split(",")
         security_group_ids = outputs["SecurityGroupIds"].split(",")
         instance_profile_name = outputs["InstanceProfileName"]
 
         run_kwargs = {
             "LaunchTemplate": {"LaunchTemplateId": template_name, "Version": "$Latest"},
-            "SubnetId": subnet_id,
             "SecurityGroupIds": security_group_ids,
             "IamInstanceProfile": {"Name": instance_profile_name},
             "MinCount": 1,
@@ -126,7 +147,25 @@ def main():
 
         shared_volume = find_shared_root_volume(args.stack_name, ec2)
 
-        response = ec2.run_instances(**run_kwargs)
+        if shared_volume is not None:
+            # EBS volumes are AZ-specific — must launch in the same AZ
+            volume_az = shared_volume["AvailabilityZone"]
+            subnet_ids = [
+                s for s in all_subnet_ids
+                if get_subnet_az(s, ec2) == volume_az
+            ]
+            if not subnet_ids:
+                raise RuntimeError(
+                    f"No subnet found in AZ {volume_az} where shared root volume {shared_volume['VolumeId']} lives. "
+                    f"Move the volume or add a subnet in that AZ."
+                )
+            print(f"Found shared root volume {shared_volume['VolumeId']} in {volume_az}")
+        else:
+            # First launch — try all subnets in random order
+            subnet_ids = all_subnet_ids[:]
+            random.shuffle(subnet_ids)
+
+        response = try_launch(run_kwargs, subnet_ids, ec2)
         instance_id = response["Instances"][0]["InstanceId"]
         print(f"Launched instance: {instance_id}")
 
@@ -136,7 +175,6 @@ def main():
             root_volume_id = get_root_volume_id(instance_id, ec2)
             tag_as_shared_root(root_volume_id, args.stack_name, ec2)
         else:
-            print(f"Found shared root volume: {shared_volume['VolumeId']}")
             print("Waiting for instance to be running before swap...")
             ec2.get_waiter("instance_running").wait(InstanceIds=[instance_id])
             swap_root_volume(instance_id, shared_volume, args.stack_name, ec2)

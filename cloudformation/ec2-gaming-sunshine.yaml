@@ -293,9 +293,9 @@ Outputs:
   SpotLaunchTemplateNobleAmd:
     Description: Spot instance launch template (Noble, AMD)
     Value: !GetAtt NobleAmd.Outputs.SpotLaunchTemplate
-  SubnetId:
-    Description: Public subnet ID for launching instances
-    Value: !Ref Subnet1
+  SubnetIds:
+    Description: Comma-separated public subnet IDs for launching instances
+    Value: !Join [",", [!Ref Subnet1, !Ref Subnet2]]
   SecurityGroupIds:
     Description: Comma-separated security group IDs for gaming instances
     Value: !Join [",", [!Ref AdminAccess, !Ref GamingAccess, !Ref RemotePlayAccess]]
