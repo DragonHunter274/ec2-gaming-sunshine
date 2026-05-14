@@ -129,7 +129,7 @@ def main():
             template_key = "OnDemandLaunchTemplateNoble" if args.on_demand else "SpotLaunchTemplateNoble"
 
         template_name = outputs[template_key]
-        all_subnet_ids = outputs["SubnetIds"].split(",")
+        all_subnet_ids = outputs.get("SubnetIds", outputs.get("SubnetId", "")).split(",")
         security_group_ids = outputs["SecurityGroupIds"].split(",")
         instance_profile_name = outputs["InstanceProfileName"]
 
